@@ -59,10 +59,12 @@ namespace N_m3u8DL_CLI
             //Console.Title = Now + "   /   " + Total;
             string downloadedSize = Global.FormatFileSize(DownloadManager.DownloadedSize);
             string estimatedSize = Global.FormatFileSize(DownloadManager.DownloadedSize * total / now);
+            int padding = downloadedSize.Length > estimatedSize.Length ? downloadedSize.Length : estimatedSize.Length;
+            DownloadManager.ToDoSize = (DownloadManager.DownloadedSize * total / now) - DownloadManager.DownloadedSize;
             string percent = (Convert.ToDouble(now) / Convert.ToDouble(total) * 100).ToString("0.00") + "%";
-            Console.SetCursorPosition(0, 2);
-            Console.Write(("Progress: " + Now + " of " + Total
-                + $" ({percent}/{downloadedSize}/{estimatedSize}/{Global.FormatTime(Convert.ToInt32(TotalDuration))})").PadRight(62));
+            var print = "Progress: " + Now + "/" + Total
+                + $" ({percent}) -- {downloadedSize.PadLeft(padding)}/{estimatedSize.PadRight(padding)}";
+            ProgressReporter.Report(print, "");
         }
 
         private void OnRenamed(object source, RenamedEventArgs e)
@@ -77,10 +79,12 @@ namespace N_m3u8DL_CLI
             //Console.Title = Now + "   /   " + Total;
             string downloadedSize = Global.FormatFileSize(DownloadManager.DownloadedSize);
             string estimatedSize = Global.FormatFileSize(DownloadManager.DownloadedSize * total / now);
+            int padding = downloadedSize.Length > estimatedSize.Length ? downloadedSize.Length : estimatedSize.Length;
+            DownloadManager.ToDoSize = (DownloadManager.DownloadedSize * total / now) - DownloadManager.DownloadedSize;
             string percent = (Convert.ToDouble(now) / Convert.ToDouble(total) * 100).ToString("0.00") + "%";
-            Console.SetCursorPosition(0, 2);
-            Console.Write(("Progress: " + Now + " of " + Total
-                + $" ({percent}/{downloadedSize}/{estimatedSize}/{Global.FormatTime(Convert.ToInt32(TotalDuration))})").PadRight(62));
+            var print = "Progress: " + Now + "/" + Total
+                + $" ({percent}) -- {downloadedSize.PadLeft(padding)}/{estimatedSize.PadRight(padding)}";
+            ProgressReporter.Report(print, "");
         }
 
         private void OnDeleted(object source, FileSystemEventArgs e)
@@ -95,10 +99,12 @@ namespace N_m3u8DL_CLI
             //Console.Title = Now + "   /   " + Total;
             string downloadedSize = Global.FormatFileSize(DownloadManager.DownloadedSize);
             string estimatedSize = Global.FormatFileSize(DownloadManager.DownloadedSize * total / now);
+            int padding = downloadedSize.Length > estimatedSize.Length ? downloadedSize.Length : estimatedSize.Length;
+            DownloadManager.ToDoSize = (DownloadManager.DownloadedSize * total / now) - DownloadManager.DownloadedSize;
             string percent = (Convert.ToDouble(now) / Convert.ToDouble(total) * 100).ToString("0.00") + "%";
-            Console.SetCursorPosition(0, 2);
-            Console.Write(("Progress: " + Now + " of " + Total
-                + $" ({percent}/{downloadedSize}/{estimatedSize}/{Global.FormatTime(Convert.ToInt32(TotalDuration))})").PadRight(62));
+            var print = "Progress: " + Now + "/" + Total
+                + $" ({percent}) -- {downloadedSize.PadLeft(padding)}/{estimatedSize.PadRight(padding)}";
+            ProgressReporter.Report(print, "");
         }
     }
 }

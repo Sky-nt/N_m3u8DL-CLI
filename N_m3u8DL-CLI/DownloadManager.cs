@@ -36,12 +36,14 @@ namespace N_m3u8DL_CLI
         public string MuxSetJson { get; set; } = string.Empty;
         public int TimeOut { get; set; } = 10000;         //超时设置
         public static double DownloadedSize { get; set; } = 0;   //已下载大小
+        public static double ToDoSize { get; set; } = 0;   //待下载大小
         public static bool HasSetDir { get; set; } = false;
         public bool NoMerge { get; set; } = false;
         public static int CalcTime { get; set; } = 1;            //计算速度的间隔
         public static int Count { get; set; } = 0;
         public static int PartsCount { get; set; } = 0;
         public static bool DisableIntegrityCheck { get; set; } = false; //关闭完整性检查
+        public static bool HasExtMap { get; set; } = false; //是否有MAP
 
         static CancellationTokenSource cts = new CancellationTokenSource();
         //计算下载速度
@@ -52,25 +54,37 @@ namespace N_m3u8DL_CLI
             timer.AutoReset = true;
             timer.Elapsed += delegate
             {
-                Console.SetCursorPosition(0, 1);
-                Console.Write("Speed: " + Global.FormatFileSize((Global.BYTEDOWN) / CalcTime) + " / s".PadRight(70));
+                var eta = "";
+                if (ToDoSize != 0)
+                {
+                    eta = " @ " + Global.FormatTime(Convert.ToInt32(ToDoSize / (Global.BYTEDOWN / CalcTime)));
+                }
+                var print = Global.FormatFileSize((Global.BYTEDOWN) / CalcTime) + "/s" + eta;
+                ProgressReporter.Report("", "(" + print + ")");
 
                 if (Global.HadReadInfo && Global.BYTEDOWN <= Global.STOP_SPEED * 1024 * CalcTime)
                 {
                     stopCount++;
-                    Console.SetCursorPosition(0, 1);
-                    Console.Write("Speed: " + Global.FormatFileSize((Global.BYTEDOWN) / CalcTime) + " / s [" + stopCount + "]".PadRight(70));
+                    eta = "";
+                    if (ToDoSize != 0)
+                    {
+                        eta = " @ " + Global.FormatTime(Convert.ToInt32(ToDoSize / (Global.BYTEDOWN / CalcTime)));
+                    }
+                    print = Global.FormatFileSize((Global.BYTEDOWN) / CalcTime) + "/s [" + stopCount + "]" + eta;
+                    ProgressReporter.Report("", "(" + print + ")");
 
                     if (stopCount >= 12)
                     {
                         Global.ShouldStop = true;
                         cts.Cancel();
+                        timer.Enabled = false;
                     }
                 }
                 else
                 {
                     stopCount = 0;
                     Global.BYTEDOWN = 0;
+                    Global.ShouldStop = false;
                 }
             };
         }
@@ -134,8 +148,10 @@ namespace N_m3u8DL_CLI
             LOGGER.PrintLine(strings.startDownloading, LOGGER.Warning);
 
             //下载MAP文件（若有）
-            try
+            downloadMap:
+            if (HasExtMap)
             {
+                LOGGER.PrintLine(strings.downloadingMapFile);
                 Downloader sd = new Downloader();
                 sd.TimeOut = TimeOut;
                 sd.FileUrl = initJson["m3u8Info"]["extMAP"].Value<string>();
@@ -153,12 +169,12 @@ namespace N_m3u8DL_CLI
                     File.Delete(sd.SavePath);
                 if (File.Exists(DownDir + "\\Part_0\\!MAP.ts"))
                     File.Delete(DownDir + "\\Part_0\\!MAP.ts");
-                LOGGER.PrintLine(strings.downloadingMapFile);
                 sd.Down();  //开始下载
-            }
-            catch (Exception e)
-            {
-                //LOG.WriteLineError(e.ToString());
+                if (!File.Exists(DownDir + "\\!MAP.ts")) //检测是否成功下载
+                {
+                    Thread.Sleep(1000);
+                    goto downloadMap;
+                }
             }
 
             //首先下载第一个分片
@@ -328,14 +344,13 @@ namespace N_m3u8DL_CLI
                     Count++;
                     LOGGER.WriteLine(strings.retryCount + Count + " / " + RetryCount);
                     LOGGER.PrintLine(strings.retryCount + Count + " / " + RetryCount, LOGGER.Warning);
-                    Thread.Sleep(6000);
+                    Thread.Sleep(3000);
                     DoDownload();
                 }
             }
             else  //开始合并
             {
                 LOGGER.PrintLine(strings.downloadComplete + (DisableIntegrityCheck ? "(" + strings.disableIntegrityCheck + ")" : ""));
-                Console.WriteLine();
                 if (NoMerge == false)
                 {
                     string exePath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
@@ -379,7 +394,6 @@ namespace N_m3u8DL_CLI
                         {
                             if (Global.VIDEO_TYPE != "DV") //不是杜比视界
                             {
-                                LOGGER.FFmpegCorsorIndex = LOGGER.CursorIndex;
                                 //检测是否为MPEG-TS封装，不是的话就转换为TS封装
                                 foreach (string s in Global.GetFiles(DownDir + "\\Part_0", ".ts"))
                                 {
@@ -465,7 +479,6 @@ namespace N_m3u8DL_CLI
                             DownDir = parser.DownDir;
                             parser.Parse();  //开始解析
                             Thread.Sleep(1000);
-                            LOGGER.CursorIndex = 5;
                             Global.HadReadInfo = false;
                             Global.VIDEO_TYPE = "";
                             Global.AUDIO_TYPE = "";
@@ -490,16 +503,13 @@ namespace N_m3u8DL_CLI
                             DownDir = parser.DownDir;
                             parser.Parse();  //开始解析
                             Thread.Sleep(1000);
-                            LOGGER.CursorIndex = 5;
                             Global.HadReadInfo = false;
                             Global.VIDEO_TYPE = "";
                             Global.AUDIO_TYPE = "";
                             DoDownload();
                         }
                         LOGGER.PrintLine(strings.taskDone, LOGGER.Warning);
-                        Console.CursorVisible = true;
                         Environment.Exit(0);  //正常退出程序
-                        Console.Clear();
                         return;
                     }
 
@@ -538,7 +548,6 @@ namespace N_m3u8DL_CLI
                     {
                         if (Global.VIDEO_TYPE != "DV")  //不是爱奇艺杜比视界
                         {
-                            LOGGER.FFmpegCorsorIndex = LOGGER.CursorIndex;
                             //检测是否为MPEG-TS封装，不是的话就转换为TS封装
                             foreach (string s in Global.GetFiles(DownDir, ".ts"))
                             {
@@ -613,7 +622,6 @@ namespace N_m3u8DL_CLI
                         DownDir = parser.DownDir;
                         parser.Parse();  //开始解析
                         Thread.Sleep(1000);
-                        LOGGER.CursorIndex = 5;
                         Global.HadReadInfo = false;
                         Global.VIDEO_TYPE = "";
                         Global.AUDIO_TYPE = "";
@@ -638,17 +646,13 @@ namespace N_m3u8DL_CLI
                         DownDir = parser.DownDir;
                         parser.Parse();  //开始解析
                         Thread.Sleep(1000);
-                        LOGGER.CursorIndex = 5;
                         Global.HadReadInfo = false;
                         Global.VIDEO_TYPE = "";
                         Global.AUDIO_TYPE = "";
                         DoDownload();
                     }
                     LOGGER.PrintLine(strings.taskDone, LOGGER.Warning);
-                    Console.CursorVisible = true;
                     Environment.Exit(0);  //正常退出程序
-
-                    Console.Clear();
                 }
                 else
                 {

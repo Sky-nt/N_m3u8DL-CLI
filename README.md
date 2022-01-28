@@ -13,9 +13,13 @@
 
 
 # [ENGLISH VERSION](https://github.com/nilaoda/N_m3u8DL-CLI/blob/master/README_ENG.md)
+
+# 下载使用
+* 发行版: https://github.com/nilaoda/N_m3u8DL-CLI/releases
+* 自动构建版`(供测试)`: https://github.com/nilaoda/N_m3u8DL-CLI/actions
  
 # 关于开源
-本项目已与2019年10月9日开源，采用MIT许可证，各取所需。
+本项目已于2019年10月9日开源，采用MIT许可证，各取所需。
 
 # 关于跨平台
 搁置了
@@ -67,6 +71,7 @@ N_m3u8DL-CLI.exe <URL|File|JSON> [OPTIONS]
     --stopSpeed  Number         当速度低于此值时，重试(单位为KB/s)
     --maxSpeed   Number         设置下载速度上限(单位为KB/s)
     --proxyAddress http://xx    设置HTTP代理, 如 http://127.0.0.1:8080
+                   socks5://xx  设置SOCKS5代理, 如 socks5://127.0.0.1:8080
     --enableDelAfterDone        开启下载后删除临时文件夹的功能
     --enableMuxFastStart        开启混流mp4的FastStart特性
     --enableBinaryMerge         开启二进制合并分片
@@ -80,6 +85,9 @@ N_m3u8DL-CLI.exe <URL|File|JSON> [OPTIONS]
 
 # 用户文档
 https://nilaoda.github.io/N_m3u8DL-CLI/
+
+# 聊聊
+https://discord.gg/W5tvcRJDPs
 
 # 赞赏
 ![Wow](https://nilaoda.github.io/N_m3u8DL-CLI/source/images/alipay.png)

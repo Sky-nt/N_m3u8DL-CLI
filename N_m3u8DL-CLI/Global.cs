@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using BrotliSharpLib;
+using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -34,17 +35,11 @@ namespace N_m3u8DL_CLI
         /*===============================================================================*/
         static Version ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         static string nowVer = $"{ver.Major}.{ver.Minor}.{ver.Build}";
-        static string nowDate = "20210201";
+        static string nowDate = "20211123";
         public static void WriteInit()
         {
-            Console.Clear();
-            Console.SetCursorPosition(0, 0);
-            Console.BackgroundColor = ConsoleColor.Blue; //设置背景色
-            Console.ForegroundColor = ConsoleColor.White; //设置前景色，即字体颜色
-            Console.WriteLine($"N_m3u8DL-CLI v{nowVer} {nowDate}...");
-            Console.ResetColor(); //将控制台的前景色和背景色设为默认值
-            Console.WriteLine("Speed: waiting");
-            Console.WriteLine("Progress: waiting");
+            Console.WriteLine($"N_m3u8DL-CLI version {nowVer} 2018-2021");
+            Console.WriteLine($"  built date: {nowDate}");
             Console.WriteLine();
         }
 
@@ -59,8 +54,8 @@ namespace N_m3u8DL_CLI
                     Console.Title = string.Format(strings.newerVisionDetected, latestVer);
                     try
                     {
-                        //尝试下载新版本(去码云)
-                        string url = $"https://gitee.com/nilaoda/N_m3u8DL-CLI/raw/master/N_m3u8DL-CLI_v{latestVer}.exe";
+                        //尝试下载新版本
+                        string url = $"https://mirror.ghproxy.com/https://github.com/nilaoda/N_m3u8DL-CLI/releases/download/{latestVer}/N_m3u8DL-CLI_v{latestVer}.exe";
                         if (File.Exists(Path.Combine(Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName), $"N_m3u8DL-CLI_v{latestVer}.exe")))
                         {
                             Console.Title = string.Format(strings.newerVerisonDownloaded, latestVer);
@@ -100,11 +95,54 @@ namespace N_m3u8DL_CLI
             return Convert.ToInt32(Microsoft.JScript.GlobalObject.parseInt(str, numBase)); 
         }
 
+        // 统一设置代理
+        // 替换 else if (UseProxyAddress != "") {
+        //      WebProxy proxy = new WebProxy(UseProxyAddress);
+        //      webRequest.Proxy = proxy;
+        // }
+        public static void SetProxy(WebRequest webRequest)
+        {
+            var g_ProxyAddress = UseProxyAddress;
+            if (g_ProxyAddress.StartsWith("http://"))
+            {
+                WebProxy proxy = new WebProxy(g_ProxyAddress);
+                //proxy.Credentials = new NetworkCredential(username, password);                     
+                webRequest.Proxy = proxy;
+            }
+
+            // socks5
+            if (g_ProxyAddress.StartsWith("socks5://"))
+            {
+                string input = g_ProxyAddress.Remove(0, 9);
+                if (input.EndsWith("/"))
+                {
+                    input = input.Remove(input.LastIndexOf('/'), 1);
+                }
+
+                string[] addr = input.Split(':');
+                //LOGGER.PrintLine("addr Length :" + addr.Length);
+                if (addr.Length == 2)
+                {
+                    int port = 0;
+                    if (int.TryParse(addr[1], out port))
+                    {
+                        var proxySocks5 = new MihaZupan.HttpToSocks5Proxy(addr[0], int.Parse(addr[1]));
+                        webRequest.Proxy = proxySocks5;
+                        //LOGGER.PrintLine("sock5 :" + addr[0] + ":" + addr[1]);
+                    }
+                }
+                else
+                {
+                    LOGGER.PrintLine("Socks5addr String Length : " + addr.Length);
+                }
+            }
+        }
+
         //获取网页源码
         public static string GetWebSource(String url, string headers = "", int TimeOut = 60000)
         {
             string htmlCode = string.Empty;
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 5; i++)
             {
                 try
                 {
@@ -117,9 +155,7 @@ namespace N_m3u8DL_CLI
                     }
                     else if (UseProxyAddress != "")
                     {
-                        WebProxy proxy = new WebProxy(UseProxyAddress);
-                        //proxy.Credentials = new NetworkCredential(username, password);
-                        webRequest.Proxy = proxy;
+                        SetProxy(webRequest);
                     }
                     webRequest.UserAgent = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36";
                     webRequest.Accept = "*/*";
@@ -186,6 +222,20 @@ namespace N_m3u8DL_CLI
                             }
                         }
                     }
+                    else if (webResponse.ContentEncoding != null
+                        && webResponse.ContentEncoding.ToLower() == "br") //如果使用了Brotli则先解压
+                    {
+                        using (Stream streamReceive = webResponse.GetResponseStream())
+                        {
+                            using (var bs = new BrotliStream(streamReceive, CompressionMode.Decompress))
+                            {
+                                using (StreamReader sr = new StreamReader(bs, Encoding.UTF8))
+                                {
+                                    htmlCode = sr.ReadToEnd();
+                                }
+                            }
+                        }
+                    }
                     else
                     {
                         using (Stream streamReceive = webResponse.GetResponseStream())
@@ -209,6 +259,7 @@ namespace N_m3u8DL_CLI
                 }
                 catch (Exception e)  //捕获所有异常
                 {
+                    LOGGER.WriteLine(e.Message);
                     LOGGER.WriteLineError(e.Message);
                     Thread.Sleep(1000); //1秒后重试
                     continue;
@@ -387,9 +438,7 @@ namespace N_m3u8DL_CLI
                 }
                 else if (UseProxyAddress != "")
                 {
-                    WebProxy proxy = new WebProxy(UseProxyAddress);
-                    //proxy.Credentials = new NetworkCredential(username, password);
-                    myRequest.Proxy = proxy;
+                    SetProxy(myRequest);
                 }
                 //添加headers
                 if (headers != "")
@@ -450,9 +499,7 @@ namespace N_m3u8DL_CLI
             }
             else if (UseProxyAddress != "")
             {
-                WebProxy proxy = new WebProxy(UseProxyAddress);
-                //proxy.Credentials = new NetworkCredential(username, password);
-                req.Proxy = proxy;
+                SetProxy(req);
             }
             req.Headers.Add("Accept-Encoding", "gzip, deflate");
             req.Accept = "*/*";
@@ -544,6 +591,8 @@ namespace N_m3u8DL_CLI
         /// </summary>
         public static void HttpDownloadFile(string url, string path, int timeOut = 20000, string headers = "", long startByte = 0, long expectByte = -1)
         {
+            int retry = 0;
+            reDownload:
             try
             {
                 if (File.Exists(path))
@@ -564,9 +613,7 @@ namespace N_m3u8DL_CLI
                 }
                 else if (UseProxyAddress != "")
                 {
-                    WebProxy proxy = new WebProxy(UseProxyAddress);
-                    //proxy.Credentials = new NetworkCredential(username, password);
-                    request.Proxy = proxy;
+                    SetProxy(request);
                 }
                 if (url.Contains("data.video.iqiyi.com"))
                     request.UserAgent = "QYPlayer/Android/4.4.5;NetType/3G;QTP/1.1.4.3";
@@ -674,6 +721,12 @@ namespace N_m3u8DL_CLI
             {
                 LOGGER.WriteLineError("DOWN: " + e.Message + " " + url);
                 try { File.Delete(path); } catch (Exception) { }
+                if (retry++ < 3)
+                {
+                    Thread.Sleep(1000);
+                    LOGGER.WriteLineError($"DOWN: AUTO RETRY {retry}/3 " + url);
+                    goto reDownload;
+                }
             }
         }
 
@@ -688,27 +741,27 @@ namespace N_m3u8DL_CLI
             {
                 return;
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[118] && 130 == u[119])
+            else if (u.Length > 120 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[118] && 130 == u[119])
             {
                 u = u.Skip(120).ToArray();
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[6100] && 130 == u[6101])
+            else if (u.Length > 6102 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[6100] && 130 == u[6101])
             {
                 u = u.Skip(6102).ToArray();
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[67] && 130 == u[68])
+            else if (u.Length > 69 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[67] && 130 == u[68])
             {
                 u = u.Skip(69).ToArray();
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[769] && 130 == u[770])
+            else if (u.Length > 771 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3] && 96 == u[769] && 130 == u[770])
             {
                 u = u.Skip(771).ToArray();
             }
-            else if (137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3])
+            else if (u.Length > 4 && 137 == u[0] && 80 == u[1] && 78 == u[2] && 71 == u[3])
             {
                 //确定是PNG但是需要手动查询结尾标记 0x47 出现两次
                 int skip = 0;
-                for (int i = 4; i < u.Length - 188 * 2; i++)
+                for (int i = 4; i < u.Length - 188 * 2 - 4; i++)
                 {
                     if (u[i] == 0x47 && u[i + 188] == 0x47 && u[i + 188 + 188] == 0x47)
                     {
@@ -854,6 +907,10 @@ namespace N_m3u8DL_CLI
                         VIDEO_TYPE = "DV";
                     }
                     else if (res.Contains("Video hevc (dvhe"))  //腾讯视频杜比视界
+                    {
+                        VIDEO_TYPE = "DV";
+                    }
+                    else if (res.Contains("Video hevc (DOVI"))  //腾讯视频杜比视界
                     {
                         VIDEO_TYPE = "DV";
                     }
@@ -1154,9 +1211,7 @@ namespace N_m3u8DL_CLI
                 }
                 else if (UseProxyAddress != "")
                 {
-                    WebProxy proxy = new WebProxy(UseProxyAddress);
-                    //proxy.Credentials = new NetworkCredential(username, password);
-                    wr.Proxy = proxy;
+                    SetProxy(wr);
                 }
                 if (setRange)
                     wr.AddRange(this.from, this.to);
